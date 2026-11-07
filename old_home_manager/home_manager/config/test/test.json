@@ -1,0 +1,41 @@
+{
+  "version" : "2",
+  "system_name" : "test",
+  "system_pretty_name" : "Test system",
+  "base_install_dir" : "/mnt/logging_usb/install/home/home_manager",
+  "config_files" :[
+     "test_ds18b20.json",
+     "test_gpio_devices.json",
+     "test_vspump.json"
+  ],
+  "event_files" :[
+     "test_events.json"
+  ],
+
+  "logging" : {
+    "enabled" : true,
+    "base_dir" : "../logs",
+    "remote_sync" : {
+      "sync_frequency_s" : 60,
+      "enabled" : true,
+      "remote_user_name" : "test",
+      "remote_url_updater" : "http://www.example.com"
+    }
+  },
+  "debug" : {
+    "enabled" : true
+  },
+  "evaluation_frequency_seconds" : 15,
+  "evaluation_frequency_seconds_min" : 10,
+  "gpio_enabled" : true,
+
+  "#Device specific" : "",
+  "ds18b20_python_file" : "../../utils/python/read_ds18b20.py",
+  "send_email_python_file" : "../../utils/python/send_email.py",
+  "read_email_python_file" : "../../utils/python/get_email_json.py",
+  "send_email_creds_python_file" : "../../utils/python/gmail_send_email.py",
+  "read_email_creds_python_file" : "../../utils/python/gmail_get_email.py",
+  "email_base_dir" : "../../logs/test/email",
+  "private_file" : "test_private.json"
+  
+}

@@ -1,0 +1,12 @@
+{
+  "events" : [
+  {
+    "version" : 2,
+    "enabled" : true,
+    "time_time" : "20:15:00",
+    "repeat_seconds" : 14400,
+    "event_type" : "run_command",
+    "command" : "GET_STATUS"
+  }
+  ]
+}

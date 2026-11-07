@@ -1,0 +1,26 @@
+{
+    "config_start": "rpi-temperature-mqtt config.json",
+    "mqtt_client_id": "power_meter",
+    "mqtt_host": "192.168.0.210",
+    "mqtt_port": "1883",
+
+    "wait_update": "60",
+    "wait_process": "3",
+    "mqtt_user": "username",
+    "mqtt_password": "password",
+    "verbose": "true",
+    "sources": [
+        {
+          "serial": "28-0000072a0843",
+          "topic": "halti/stweg/temperature_heating"
+        },
+        {
+          "serial": "28-011600e851ee",
+          "topic": "halti/stweg/temperature_water"
+        },
+        {
+          "serial": "28-0315536994ff",
+          "topic": "halti/stweg/temperature_solar"
+        }
+      ]
+}

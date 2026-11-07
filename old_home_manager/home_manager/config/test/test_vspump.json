@@ -1,0 +1,49 @@
+{
+  "devices" : [
+  {
+    "type" : "vs_pump",
+    "name" : "pool_pump",
+    "gpio_reversed" : false,
+    "gpio_pud_state" : "pud_down",
+    "gpio_initial_state" : "Speed 1",
+    "relay" : [
+      {
+        "type" : "relay",
+        "name" : "relay_inp3",
+        "gpio_num" : 18,
+        "gpio_reversed" : false,
+        "gpio_pud_state" : "pud_down",
+        "gpio_pin_mode" : "output",
+        "gpio_initial_state" : "Off"
+      },
+      {
+        "type" : "relay",
+        "name" : "relay_inp2",
+        "gpio_num" : 5,
+        "gpio_reversed" : false,
+        "gpio_pud_state" : "pud_down",
+        "gpio_pin_mode" : "output",
+        "gpio_initial_state" : "Off"
+      },
+      {
+        "type" : "relay",
+        "name" : "relay_inp1",
+        "gpio_num" : 23,
+        "gpio_reversed" : false,
+        "gpio_pud_state" : "pud_down",
+        "gpio_pin_mode" : "output",
+        "gpio_initial_state" : "Off"
+      },
+      {
+        "type" : "relay",
+        "name" : "relay_pump_enable",
+        "gpio_num" : 24,
+        "gpio_reversed" : false,
+        "gpio_pud_state" : "pud_down",
+        "gpio_pin_mode" : "output",
+        "gpio_initial_state" : "Off"
+      }
+    ]
+  }
+  ]
+}

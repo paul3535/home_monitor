@@ -1,0 +1,243 @@
+{
+  "events" : [
+  {
+    "version" : 2,
+    "time_offset_seconds" : 20,
+    "event_type" : "run_command",
+    "command" : "GET_STATUS"
+  },
+  {
+    "version" : 2,
+    "time_offset_seconds" : 60,
+    "repeat_seconds" : 600,
+    "event_type" : "run_command",
+    "command" : "GET_STATUS"
+  },
+  {
+    "version" : 2,
+    "enabled" : false,
+    "enabled" : false,
+    "time_offset_seconds" : 55,
+    "event_type" : "relay",
+    "device" : [
+    {
+        "device_type" : "relay",
+        "name" : "relay_5",
+        "command" : "TURN_ON"
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "enabled" : false,
+    "time_offset_seconds" : 40,
+    "event_type" : "relay",
+    "device" : [
+    {
+        "device_type" : "relay",
+        "name" : "relay_5",
+        "command" : "TURN_OFF"
+    },
+    {
+        "device_type" : "relay",
+        "name" : "relay_6",
+        "command" : "TURN_OFF"
+    },
+    {
+        "device_type" : "relay",
+        "name" : "relay_7",
+        "command" : "TURN_OFF"
+    },
+    {
+        "device_type" : "relay",
+        "name" : "relay_8",
+        "command" : "TURN_OFF"
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "enabled" : false,
+    "time_offset_seconds" : 25,
+    "event_type" : "relay",
+    "device" : [
+    {
+        "device_type" : "relay",
+        "name" : "relay_5",
+        "command" : "TURN_ON"
+    },
+    {
+        "device_type" : "relay",
+        "name" : "relay_6",
+        "command" : "TURN_ON"
+    },
+    {
+        "device_type" : "relay",
+        "name" : "relay_7",
+        "command" : "TURN_ON"
+    },
+    {
+        "device_type" : "relay",
+        "name" : "relay_8",
+        "command" : "TURN_ON"
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "time_offset_seconds" : 10,
+    "enabled" : false,
+    "event_type" : "relay",
+    "device" : [
+    {
+        "device_type" : "relay",
+        "name" : "relay_5",
+        "command" : "TURN_OFF"
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "enabled" : false,
+    "time_offset_seconds" : 10,
+    "event_type" : "relay",
+    "device" : [
+    {
+        "device_type" : "relay",
+        "name" : "relay_6",
+        "command" : "TURN_OFF"
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "enabled" : false,
+    "time_offset_seconds" : 10,
+    "event_type" : "relay",
+    "device" : [
+    {
+        "device_type" : "relay",
+        "name" : "relay_7",
+        "command" : "TURN_OFF"
+    },
+    {
+        "device_type" : "relay",
+        "name" : "relay_8",
+        "command" : "TURN_OFF"
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "enabled" : false,
+    "time_offset_seconds" : 10,
+    "event_type" : "vs_pump",
+    "device" : [
+    {
+        "device_type" : "vs_pump",
+        "name" : "pool_pump",
+        "command" : "SET_SPEED",
+        "speed" : 1
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "enabled" : false,
+    "time_offset_seconds" : 25,
+    "event_type" : "vs_pump",
+    "device" : [
+    {
+        "device_type" : "vs_pump",
+        "name" : "pool_pump",
+        "command" : "SET_SPEED",
+        "speed" : 2
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "enabled" : false,
+    "time_offset_seconds" : 40,
+    "event_type" : "vs_pump",
+    "device" : [
+    {
+        "device_type" : "vs_pump",
+        "name" : "pool_pump",
+        "command" : "SET_SPEED",
+        "speed" : 3
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "enabled" : false,
+    "time_offset_seconds" : 55,
+    "event_type" : "vs_pump",
+    "device" : [
+    {
+        "device_type" : "vs_pump",
+        "name" : "pool_pump",
+        "command" : "SET_SPEED",
+        "speed" : 4
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "enabled" : false,
+    "time_offset_seconds" : 70,
+    "event_type" : "vs_pump",
+    "device" : [
+    {
+        "device_type" : "vs_pump",
+        "name" : "pool_pump",
+        "command" : "SET_SPEED",
+        "speed" : 5
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "enabled" : false,
+    "time_offset_seconds" : 85,
+    "event_type" : "vs_pump",
+    "device" : [
+    {
+        "device_type" : "vs_pump",
+        "name" : "pool_pump",
+        "command" : "SET_SPEED",
+        "speed" : 6
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "enabled" : false,
+    "time_offset_seconds" : 115,
+    "event_type" : "vs_pump",
+    "device" : [
+    {
+        "device_type" : "vs_pump",
+        "name" : "pool_pump",
+        "command" : "SET_SPEED",
+        "speed" : 8
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "enabled" : false,
+    "time_offset_seconds" : 100,
+    "event_type" : "vs_pump",
+    "device" : [
+    {
+        "device_type" : "vs_pump",
+        "name" : "pool_pump",
+        "command" : "SET_SPEED",
+        "speed" : 7
+    }
+    ]
+  }
+  ]
+}

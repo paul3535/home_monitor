@@ -1,0 +1,7 @@
+- Add system info (devices, etc) to status
+- Add external ip address to status
+- clean up html in status
+- print floats with only 2 decimals
+
+- Make it so a device can optionally show in the output (for example, the garage door gpio doesn't need to show)
+- Make GPIO have the ability to save the last read state so we don't always read a new state.
