@@ -1,0 +1,25 @@
+{
+  "devices" : [
+  {
+    "version" : 2,
+    "type" : "ds18b20",
+    "name" : "test_temp",
+    "pretty_name" : "Test temp",
+    "id" : "28-031604fc52ff",
+    "enabled" : true,
+    "temp_c_override" : "Test Temp override",
+    "evaluation_actions" : [
+    {
+      "type" : "BOUNDS_THRESHOLD",
+      "operation" : "greater_than",
+      "datum" : 26,
+      "watch_time" : 0,
+      "warn_time" : 300,
+      "error_time" : 600,
+      "error_retry_time" : 300,
+      "property_name" : "temp_c"
+    }
+    ]
+  }
+  ]
+}

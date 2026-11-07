@@ -1,0 +1,85 @@
+{
+  "ds18b20_config" :
+  {
+    "one_wire_pin" : 4
+  },
+  "devices" : [
+  {
+    "version" : 2,
+    "type" : "ds18b20",
+    "name" : "chest_freezer",
+    "pretty_name" : "Chest Freezer",
+    "id" : "28-000000000000",
+    "enabled" : true,
+    "temp_c_override" : "Chest Temp",
+    "evaluation_actions" : [
+    {
+      "type" : "BOUNDS_THRESHOLD",
+      "operation" : "greater_than",
+      "datum" : -8,
+      "property_name" : "temp_c",
+      "notification_config" : [
+        {
+          "watch_time" : 0,
+          "warn_time" : 300,
+          "error_time" : 600,
+          "error_retry_time" : 300,
+          "notify_watch" : true
+        }
+        ]
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "type" : "ds18b20",
+    "name" : "upright_freezer",
+    "pretty_name" : "Upright Freezer",
+    "id" : "28-000000000000",
+    "enabled" : true,
+    "temp_c_override" : "Upright Temp",
+    "evaluation_actions" : [
+    {
+      "type" : "BOUNDS_THRESHOLD",
+      "operation" : "greater_than",
+      "datum" : -8,
+      "property_name" : "temp_c"
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "type" : "ds18b20",
+    "name" : "fridge_freezer",
+    "pretty_name" : "Fridge Freezer",
+    "id" : "28-000000000000",
+    "enabled" : false,
+    "temp_c_override" : "Fridge Freezer Temp",
+    "evaluation_actions" : [
+    {
+      "type" : "BOUNDS_THRESHOLD",
+      "operation" : "greater_than",
+      "datum" : -8,
+      "property_name" : "temp_c"
+    }
+    ]
+  },
+  {
+    "version" : 2,
+    "type" : "ds18b20",
+    "name" : "fridge",
+    "pretty_name" : "Fridge",
+    "id" : "28-000000000000",
+    "enabled" : false,
+    "temp_c_override" : "Feidge Temp",
+    "evaluation_actions" : [
+    {
+      "type" : "BOUNDS_THRESHOLD",
+      "operation" : "greater_than",
+      "datum" : 4,
+      "property_name" : "temp_c"
+    }
+    ]
+  }
+  ]
+}

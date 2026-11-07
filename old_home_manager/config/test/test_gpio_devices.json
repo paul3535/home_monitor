@@ -1,0 +1,40 @@
+{
+  "devices" : [
+  {
+    "type" : "relay",
+    "name" : "chlorinator_enable",
+    "gpio_num" : 16,
+    "gpio_reversed" : false,
+    "gpio_pud_state" : "pud_down",
+    "gpio_pin_mode" : "output",
+    "gpio_initial_state" : "Off"
+  },
+  {
+    "type" : "relay",
+    "name" : "relay_6",
+    "gpio_num" : 20,
+    "gpio_reversed" : false,
+    "gpio_pud_state" : "pud_down",
+    "gpio_pin_mode" : "output",
+    "gpio_initial_state" : "Off"
+  },
+  {
+    "type" : "relay",
+    "name" : "relay_7",
+    "gpio_num" : 21,
+    "gpio_reversed" : false,
+    "gpio_pud_state" : "pud_down",
+    "gpio_pin_mode" : "output",
+    "gpio_initial_state" : "Off"
+  },
+  {
+    "type" : "relay",
+    "name" : "relay_8",
+    "gpio_num" : 26,
+    "gpio_reversed" : false,
+    "gpio_pud_state" : "pud_down",
+    "gpio_pin_mode" : "output",
+    "gpio_initial_state" : "Off"
+  }
+  ]
+}

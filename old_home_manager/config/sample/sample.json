@@ -1,0 +1,40 @@
+{
+  "version" : "2",
+  "system_name" : "sample",
+  "system_pretty_name" : "Sample Monitor",
+  "base_install_dir" : "/mnt/logging_usb/install/home/home_manager",
+  "config_files" :[
+     "sample_ds18b20.json"
+  ],
+  "event_files" :[
+     "sample_events.json"
+  ],
+  "logging" : {
+    "enabled" : true,
+    "base_dir" : "../logs",
+    "log_to_file" : true,
+    "remote_sync" : {
+      "sync_frequency_s" : 60,
+      "enabled" : true,
+      "remote_user_name" : "test",
+      "remote_url_updater" : "http://www.example.com/remote.json"
+    }
+  },
+  "debug" : {
+    "enabled" : true
+  },
+  "evaluation_frequency_seconds" : 60,
+  "evaluation_frequency_seconds_min" : 10,
+  "gpio_enabled" : true,
+  "send_startup" : true,
+
+  "#Device specific" : "",
+  "email_base_dir" : "../logs/sample/email",
+  "ds18b20_python_file" : "../../utils/python/read_ds18b20.py",
+  "send_email_python_file" : "../../utils/python/chatgpt_send_email.py",
+  "read_email_python_file" : "../../utils/python/get_email_json.py",
+  "send_email_creds_python_file" : "../../utils/python/gmail_send_email.py",
+  "read_email_creds_python_file" : "../../utils/python/gmail_get_email.py",
+  "email_base_dir" : "../../logs/sample/email",
+  "private_file" : "sample_private.json"
+}

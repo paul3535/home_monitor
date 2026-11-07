@@ -1,0 +1,27 @@
+{
+  "thresholds" : [
+  {
+    "evaluation_action" : {
+      "device_name" : "pool_pump",
+      "type" : "state_change",
+
+      "threshold_type" : "change_on",
+      "state" : "OFF",
+      "event" : [
+      {
+        "version" : "2",
+        "time" : "now",
+        "event_type" : "relay",
+        "device" : [
+        {
+            "device_type" : "relay",
+            "name" : "chlorinator_enable",
+            "command" : "TURN_OFF"
+        }
+        ]
+      }
+      ]
+    }
+  }
+  ]
+}
