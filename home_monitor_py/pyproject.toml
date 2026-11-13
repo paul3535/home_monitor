@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "home-monitor"
+version = "0.1.0"
+description = "Freezer temperature and reed-switch monitor for a Raspberry Pi"
+requires-python = ">=3.11"
+dependencies = []          # core uses only the standard library
+
+[project.optional-dependencies]
+pi = ["gpiozero", "lgpio"]  # or: sudo apt install python3-gpiozero python3-lgpio
+
+[project.scripts]
+home-monitor = "home_monitor.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

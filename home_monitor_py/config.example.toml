@@ -1,0 +1,195 @@
+# Copy to config.toml and edit. Secrets (SMTP password) go in environment variables, not here.
+
+[system]
+name = "roselawn"
+db_path = "data/home_monitor.db"
+log_dir = "logs"
+log_level = "INFO"
+tick_seconds = 1          # how often alert timers are advanced
+retention_days = 365
+send_startup = true       # email report_to a note when the program starts
+daily_report_hour = 8     # local time; delete this line to turn the daily report off
+# private_file = "private.toml"   # secrets kept out of git, relative to this file
+
+# Real addresses belong in private.toml (see private.example.toml), which overrides these
+# placeholders. Enable it with  private_file = "private.toml"  under [system] above.
+# People, and how to reach them on each channel. A plain string is an email address; use a table
+# to give a person an address on several channels:  mum = { email = "...", ntfy = "mum-topic" }
+[contacts]
+paul = { email = "you@example.com", ntfy = "paul-example-topic" }
+mum  = "mum@example.com"
+dad  = "dad@example.com"
+
+[notify]
+report_to = ["paul"]        # who gets the daily report and the panel's test messages
+
+# Who hears about each level. A rule can override this with recipients = {...}.
+[notify.levels]
+watch = ["paul"]            # needed: the garage and washing machine alerts notify at "watch"
+warn  = ["paul"]
+error = ["paul", "mum", "dad"]
+
+# --- Channels: how they are told -------------------------------------------------------
+# Every enabled channel gets every message it accepts, in parallel, so one failing channel
+# never delays another. Each channel picks its own address out of each person (email -> their
+# email, ntfy -> their ntfy topic) and skips people who have none.
+# Optional on any channel:  levels = ["warn", "error"]   which alert levels it carries (default all)
+#                           kinds  = ["event", "report", "test", "startup"]
+# A log channel is always on, so there is a record of everything sent.
+# Secrets (login, tokens, topics) belong in private.toml under the same channel name.
+
+[notify.channels.email]
+enabled = true
+smtp_host = "smtp.gmail.com"
+smtp_port = 587
+from_addr = "you@example.com"
+# starttls = false          # only for a local relay that does not use TLS
+# user / password           # or the HOME_MONITOR_SMTP_USER / HOME_MONITOR_SMTP_PASSWORD environment variables
+
+# Push notifications to the ntfy Android/iOS app: https://ntfy.sh. Each person subscribes to their topic.
+# Priorities: watch 3, warn 4, error 5 (rings through Do Not Disturb if you allow it for that topic).
+[notify.channels.ntfy]
+enabled = false
+server = "https://ntfy.sh"
+# token = "tk_..."          # only for a protected server (or HOME_MONITOR_NTFY_TOKEN)
+# priorities = { watch = 2, warn = 4, error = 5 }
+# kinds = ["event", "test", "startup", "report"]   # ntfy skips the daily report by default
+
+# Buttons on alert notifications: Mute 1h / Mute 8h / Status. Tapping one posts a signed command to a
+# private command topic that the monitor polls (outbound only: nothing to open on your network).
+# Both values are secrets: put them in private.toml (see private.example.toml).
+# command_topic  = "..."     # a long random topic name
+# command_secret = "..."     # at least 16 random characters; signs every button
+# mute_buttons   = ["1h", "8h"]    # at most 2
+# max_mute       = "24h"           # the longest mute a button can set
+# command_ttl    = "24h"           # how long a button keeps working after the notification
+# command_poll_s = 5               # how often the monitor checks for button presses
+
+# --- Sensors -------------------------------------------------------------
+# Ids are the directory names under /sys/bus/w1/devices/. Check with: ls /sys/bus/w1/devices
+[[ds18b20]]
+name = "chest_freezer"
+id = "28-0000072a0843"
+interval_s = 60
+
+[[ds18b20]]
+name = "upright_freezer"
+id = "28-0315536994ff"      # assumed from 1wire/temp_sensor.py: verify on the Pi
+interval_s = 60
+
+# Reed switches on BCM pins, wired switch-to-ground with the internal pull-up, normally open.
+# "closed" = magnet near = pin LOW (the C++ code called this ON). Pins from monitor_gpio.json.
+[[switches]]
+name = "garage_door_down"
+pin = 27                    # nearest the door
+[[switches]]
+name = "garage_door_up"
+pin = 17                    # near the opener
+[[switches]]
+name = "washing_machine_lid_up"
+pin = 22
+
+# --- Devices built from switches ---------------------------------------------------
+# garage_door: up | down | neither (moving) | unknown (both switches closed: should never happen)
+# washing_machine: up | down. settle_s: a state must hold this long before it counts.
+[[devices]]
+name = "roselawn_garage_door"
+type = "garage_door"
+up = "garage_door_up"
+down = "garage_door_down"
+settle_s = 1.0
+
+[[devices]]
+name = "roselawn_washing_machine"
+type = "washing_machine"
+lid_up = "washing_machine_lid_up"
+settle_s = 1.0
+
+# --- Alerts --------------------------------------------------------------
+# Same thresholds as the C++ test email: above -8 C; watch 0 s, warn 300 s, error 600 s,
+# error repeats every 300 s. notify_on picks which levels send a message.
+[[alerts]]
+name = "chest_freezer_warm"
+type = "bounds"
+source = "chest_freezer"
+op = "greater_than"
+value = -8.0
+watch_s = 0
+warn_s = 300
+error_s = 600
+error_retry_s = 300
+notify_on = ["warn", "error"]
+
+[[alerts]]
+name = "upright_freezer_warm"
+type = "bounds"
+source = "upright_freezer"
+op = "greater_than"
+value = -8.0
+watch_s = 0
+warn_s = 300
+error_s = 600
+error_retry_s = 300
+
+# A sensor that stops reporting is an alert too (new: the C++ code could not see this).
+[[alerts]]
+name = "chest_freezer_silent"
+type = "stale"
+source = "chest_freezer"
+max_age_s = 180
+watch_s = 0
+warn_s = 0
+error_s = 600
+
+[[alerts]]
+name = "upright_freezer_silent"
+type = "stale"
+source = "upright_freezer"
+max_age_s = 180
+watch_s = 0
+warn_s = 0
+error_s = 600
+
+# Garage door and washing machine, from monitor_gpio.json (notify_watch = true there, hence "watch").
+[[alerts]]
+name = "garage_door_up_too_long"
+type = "state"
+source = "roselawn_garage_door"
+state = "up"
+watch_s = 0
+warn_s = 60
+error_s = 120
+error_retry_s = 300
+notify_on = ["watch", "warn", "error"]
+
+[[alerts]]
+name = "garage_door_unknown_state"        # both switches closed
+type = "state"
+source = "roselawn_garage_door"
+state = "unknown"
+watch_s = 0
+warn_s = 1
+error_s = 1
+error_retry_s = 300
+notify_on = ["watch", "warn", "error"]
+
+[[alerts]]
+name = "garage_door_failed_to_close"      # started closing, then went back up
+type = "door_failed_to_close"
+source = "roselawn_garage_door"
+watch_s = 0
+warn_s = 1
+error_s = 1
+error_retry_s = 30
+notify_on = ["watch", "warn", "error"]
+
+[[alerts]]
+name = "washing_machine_lid_down_too_long"
+type = "state"
+source = "roselawn_washing_machine"
+state = "down"
+watch_s = 0
+warn_s = 3600
+error_s = 5400
+error_retry_s = 300
+notify_on = ["watch", "warn", "error"]

@@ -1,0 +1,37 @@
+# Secrets shared by all your configs. Copy to private.toml, fill in, and: chmod 600 private.toml
+# private.toml is in .gitignore. Never commit it, and never paste it anywhere public.
+#
+# Use it from a config with   [system] private_file = "private.toml"   (relative to that config file),
+# or  --private /path/to/private.toml,  or the HOME_MONITOR_PRIVATE environment variable.
+# The command line beats the environment variable, which beats the config file.
+
+# Who people are and how to reach them. A config refers to them by name, so configs can be committed.
+# A string is an email address; a table gives several channels. An entry here replaces the same
+# name in a config's own [contacts].
+[contacts]
+paul = { email = "paul@example.com", ntfy = "paul-8f3k2x9q" }
+mum  = { email = "mum@example.com",  ntfy = "mum-t7w1c4nz" }
+dad  = "dad@example.com"
+tester = { email = "paul+test@example.com", ntfy = "paul-test-5d2h8v1m" }
+
+# Optional: names that stand for several contacts. Use them anywhere a contact name is allowed,
+# e.g.  error = ["family"]  under [notify.levels]. Members must be contacts, not other groups.
+[groups]
+family = ["paul", "mum", "dad"]
+
+# Optional: details merged over the same channel in the config (matched by name).
+# An ntfy topic works like a password: anyone who knows it can read and post to it.
+[notify.channels.email]
+from_addr = "paul@example.com"
+# user = "paul@example.com"
+# password = "a-gmail-app-password"
+
+[notify.channels.ntfy]
+enabled = true
+# token = "tk_..."          # only for a protected ntfy server
+
+# Mute/Status buttons on notifications. Make both values long and random, for example with:
+#     python3 -c "import secrets; print(secrets.token_urlsafe(24))"
+# Anyone who knows the topic can post to it, but without the secret they cannot run a command.
+command_topic  = "cmd-replace-with-a-long-random-string"
+command_secret = "replace-with-another-long-random-string"

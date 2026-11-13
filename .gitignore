@@ -143,3 +143,4 @@ utils/cpp/wiringPiTest/read_gpio
 utils/sh/internal_ip
 utils/cpp/libgpiod/libgpiod_test
 *_private.json
+private*
