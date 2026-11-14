@@ -1,0 +1,41 @@
+# For --simulate: fake sensors, short timers so alerts fire within a couple of minutes.
+[system]
+name = "sim"
+db_path = "data/sim.db"
+log_dir = "logs"
+tick_seconds = 1
+
+[contacts]
+me = "me@example.com"
+
+[notify.levels]
+warn = ["me"]
+error = ["me"]
+
+[[ds18b20]]
+name = "chest_freezer"
+id = "28-fake"
+interval_s = 2
+
+[[switches]]
+name = "reed_17"
+pin = 17
+
+[[alerts]]
+name = "chest_freezer_warm"
+type = "bounds"
+source = "chest_freezer"
+op = "greater_than"
+value = -9.0
+watch_s = 0
+warn_s = 5
+error_s = 12
+error_retry_s = 6
+
+[[alerts]]
+name = "reed_17_open"
+type = "state"
+source = "reed_17"
+state = "open"
+warn_s = 4
+error_s = 8
