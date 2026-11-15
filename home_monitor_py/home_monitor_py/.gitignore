@@ -1,8 +1,0 @@
-__pycache__/
-*.egg-info/
-.venv/
-config.toml
-data/
-logs/
-private.toml
-*.private.toml
