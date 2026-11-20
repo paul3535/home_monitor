@@ -12,6 +12,11 @@ from ..commands import CommandError, CommandHandler, CommandRejected, decode
 log = logging.getLogger(__name__)
 
 
+def mask(topic: str) -> str:
+    """A topic works like a password, and logs get pasted into chats: never write one in full."""
+    return topic[:4] + "…"
+
+
 class NtfyCommandListener:
     """Outbound-only: the monitor asks ntfy for new messages every ``command_poll_s`` seconds.
 
@@ -40,7 +45,7 @@ class NtfyCommandListener:
                 if since is None:   # first contact: note what is already there and do not run it
                     old = await asyncio.to_thread(self._poll, "all")
                     since = old[-1]["id"] if old else str(int(time.time()))
-                    log.info("listening for ntfy commands on topic %s...", self.channel.command_topic[:4] + "…")
+                    log.info("listening for ntfy commands on topic %s", mask(self.channel.command_topic))
                 else:
                     for msg in await asyncio.to_thread(self._poll, since):
                         since = msg["id"]
@@ -62,16 +67,17 @@ class NtfyCommandListener:
             if exc.reply:
                 await self._reply(exc.reply, "command not run", exc.reason)
             return
-        log.info("command from %s: %s %s", cmd.reply, cmd.name, " ".join(cmd.args))
+        log.info("command from %s: %s %s", mask(cmd.reply), cmd.name, " ".join(cmd.args))
         try:
             result = self.handler.run(cmd.name, cmd.args)
         except CommandError as exc:
             await self._reply(cmd.reply, "command not run", str(exc))
             return
-        await self._reply(cmd.reply, f"[{self.system_name}] {result.headline}", result.body, result.undo)
+        await self._reply(cmd.reply, f"[{self.system_name}] {result.headline}", result.body, result.buttons)
 
-    async def _reply(self, topic: str, title: str, message: str, undo=None) -> None:
+    async def _reply(self, topic: str, title: str, message: str, buttons=()) -> None:
         try:
-            await asyncio.to_thread(self.channel.reply, topic, title, message, undo)
+            await asyncio.to_thread(self.channel.reply, topic, title, message, buttons)
+            log.info("replied on %s: %s", mask(topic), title)
         except Exception as exc:  # noqa: BLE001
-            log.warning("could not reply on %s: %s", topic, exc)
+            log.warning("could not reply on %s: %s", mask(topic), exc)

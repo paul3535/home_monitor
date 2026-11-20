@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import re
+import secrets
 import sys
 import tempfile
 from pathlib import Path
@@ -9,6 +11,29 @@ from pathlib import Path
 from .app import Monitor, setup_logging
 from .config import ConfigError, load_config
 from .notify import valid_test_target
+
+
+NAME = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
+
+
+def new_users(names: list[str]) -> int:
+    """Print a [contacts] line, with a fresh unguessable ntfy topic, for each person. Prints only: nothing is
+    written, so you decide what goes in private.toml."""
+    names = [n.lower() for n in names]
+    bad = [n for n in names if not NAME.match(n)]
+    if bad or len(set(names)) != len(names):
+        print(f"names must be unique and use lowercase letters, digits, - and _ (starting with a letter): {bad or names}",
+              file=sys.stderr)
+        return 2
+    topics = {n: f"{n}-{secrets.token_urlsafe(16)}" for n in names}
+    print("# Add under [contacts] in private.toml (never commit that file; chmod 600). Add email = \"...\" to also email them.")
+    for n, topic in topics.items():
+        print(f'{n} = {{ ntfy = "{topic}" }}')
+    print("\n# Each person installs the ntfy app, taps + and subscribes to their own topic. On their phone this link")
+    print("# should open the app on it (self-hosted server? use its address instead of ntfy.sh):")
+    for n, topic in topics.items():
+        print(f"#   {n}: ntfy://ntfy.sh/{topic}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -28,6 +53,8 @@ def main(argv: list[str] | None = None) -> int:
                         "addresses and/or ntfy topic names (messages say who would really have been told)")
     p.add_argument("--fake-send-real", action="store_true",
                    help="with --fake-pi: really send to the REAL recipients on every enabled channel (asks you to confirm)")
+    p.add_argument("--new-user", nargs="+", metavar="NAME",
+                   help="print a [contacts] line with a fresh random ntfy topic for each name, then exit")
     p.add_argument("--check-config", action="store_true", help="validate the config and exit")
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args(argv)
@@ -43,6 +70,8 @@ def main(argv: list[str] | None = None) -> int:
         p.error("choose --fake-send-to or --fake-send-real, not both")
     if args.fake_send_to and not all(valid_test_target(a) for a in args.fake_send_to):
         p.error("--fake-send-to takes email addresses and/or ntfy topic names (letters, digits, - and _)")
+    if args.new_user:
+        return new_users(args.new_user)
     try:
         cfg = load_config(args.config, args.private)
     except (OSError, ConfigError) as exc:

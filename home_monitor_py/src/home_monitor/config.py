@@ -46,6 +46,15 @@ class Config:
     switches: list[dict] = field(default_factory=list)
     devices: list[dict] = field(default_factory=list)
     alerts: list[dict] = field(default_factory=list)
+    display_names: dict[str, str] = field(default_factory=dict)         # sensors, switches, devices -> readable name
+    alert_display_names: dict[str, str] = field(default_factory=dict)   # alerts -> readable name
+
+    def label(self, name: str) -> str:
+        """What people read for a sensor, switch or device: its display_name, else its name."""
+        return self.display_names.get(name, name)
+
+    def alert_label(self, name: str) -> str:
+        return self.alert_display_names.get(name, name)
 
     def resolve(self, names: list[str]) -> list[Contact]:
         """Contacts for contact and/or group names, without duplicates, in order."""
@@ -167,8 +176,27 @@ def load_config(path: str | Path, private: str | Path | None = None) -> Config:
         devices=raw.get("devices", []),
         alerts=raw.get("alerts", []),
     )
+    _read_display_names(cfg)
     _validate(cfg)
+    build_rules(cfg, 0.0)   # bad thresholds, operators or scopes fail here, so --check-config catches them
     return cfg
+
+
+def _read_display_names(cfg: Config) -> None:
+    """display_name is for people (notification titles, status, reports); the name stays the id that
+    buttons, commands, the database and the logs use."""
+    def read(kind: str, entries: list[dict]) -> dict[str, str]:
+        out = {}
+        for entry in entries:
+            if "display_name" not in entry:
+                continue
+            text = entry["display_name"]
+            if not isinstance(text, str) or not text.strip() or len(text.strip()) > 80:
+                raise ConfigError(f"{kind} {entry.get('name')!r}: display_name must be short text (1 to 80 characters)")
+            out[entry["name"]] = text.strip()
+        return out
+    cfg.display_names = {**read("sensor", cfg.ds18b20), **read("switch", cfg.switches), **read("device", cfg.devices)}
+    cfg.alert_display_names = read("alert", cfg.alerts)
 
 
 def _validate(cfg: Config) -> None:
@@ -199,9 +227,26 @@ def _validate(cfg: Config) -> None:
             if name not in cfg.contacts and name not in cfg.groups:
                 raise ConfigError(f"unknown contact or group {name!r}; add it under [contacts]{where}")
     try:
-        build_channels(cfg.channels)
+        channels = build_channels(cfg.channels)
     except ValueError as exc:
         raise ConfigError(str(exc)) from exc
+    for a in cfg.alerts:
+        for key in ("always_notify", "recovery_to"):
+            names = a.get(key, [])
+            if not isinstance(names, list) or not all(isinstance(c, str) for c in names):
+                raise ConfigError(f"alert {a.get('name')!r}: {key} must be a list of contact or group names")
+            for name in names:
+                if name not in cfg.contacts and name not in cfg.groups:
+                    raise ConfigError(f"alert {a.get('name')!r}: {key} names unknown contact {name!r}{where}")
+        claim = a.get("claim", [])
+        if not isinstance(claim, list) or not all(isinstance(c, str) for c in claim) or len(claim) > 4:
+            raise ConfigError(f"alert {a.get('name')!r}: claim must be a list of up to 4 contact names")
+        for name in claim:
+            if name not in cfg.contacts:
+                raise ConfigError(f"alert {a.get('name')!r}: claim names unknown contact {name!r}{where}")
+        if claim and not any(getattr(c, "command_topic", None) for c in channels):
+            cfg.warnings.append(f"alert {a.get('name')!r} can be claimed, but no ntfy channel has command_topic and "
+                                "command_secret, so nobody can tap I'll do it")
     for a in cfg.alerts:
         kind, src = a.get("type"), a.get("source")
         valid = sensors if kind in ("bounds", "stale") else switches | devices
@@ -221,7 +266,10 @@ def build_rules(cfg: Config, now: float) -> list[AlertRule]:
                 error_retry_s=float(a.get("error_retry_s", 300)),
                 notify_on=frozenset(AlertState(x) for x in a.get("notify_on", ["warn", "error"])),
             )
-            common = dict(escalation=esc, recipients=a.get("recipients"))
+            common = dict(escalation=esc, recipients=a.get("recipients"), claim=tuple(a.get("claim", ())),
+                          display_name=cfg.alert_display_names.get(a["name"]), source_label=cfg.label(a["source"]),
+                          always_notify=tuple(a.get("always_notify", ())), recovery_to=tuple(a.get("recovery_to", ())),
+                          mute_scope=a.get("mute_scope", "alert"))
             kind = a["type"]
             if kind == "bounds":
                 rules.append(BoundsRule(a["name"], a["source"], a["op"], float(a["value"]),

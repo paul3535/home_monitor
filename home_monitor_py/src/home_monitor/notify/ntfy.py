@@ -42,7 +42,7 @@ class NtfyChannel(Channel):
     kind = "ntfy"
     option_names = frozenset({"server", "token", "priorities", "command_topic", "command_secret", "command_ttl",
                               "mute_buttons", "max_mute", "command_poll_s"})
-    default_kinds = ("event", "test", "startup")   # no daily-report push unless you add "report"
+    default_kinds = ("event", "test", "startup", "claim")   # no daily-report push unless you add "report"
 
     def __init__(self, name: str, options: dict) -> None:
         super().__init__(name, options)
@@ -88,21 +88,52 @@ class NtfyChannel(Channel):
     def tags(self, n: Notification) -> list[str]:
         if n.kind == "event":
             return ["white_check_mark"] if n.recovery else LEVEL_TAGS.get(n.level or "", [])
-        return {"report": ["bar_chart"], "test": ["test_tube"], "startup": ["rocket"]}.get(n.kind, [])
+        return {"report": ["bar_chart"], "test": ["test_tube"], "startup": ["rocket"], "claim": ["raising_hand"]}.get(n.kind, [])
 
     def _button(self, reply_topic: str, label: str, name: str, args=(), clear: bool = False) -> dict:
         body = encode(self._secret, name, args, reply_topic, time.time() + self.command_ttl)
         return {"action": "http", "label": label, "url": f"{self.server}/{self.command_topic}",
                 "method": "POST", "body": body, "clear": clear}
 
+    @staticmethod
+    def _who(n: Notification, topic: str) -> str:
+        """The contact whose ntfy topic this is, so a button can say who tapped it."""
+        return next((c.name for c in n.recipients if c.addresses.get("ntfy") == topic), "")
+
+    @staticmethod
+    def _mute_args(rule: str, duration: str, who: str) -> tuple:
+        """Mute buttons say who tapped, so an alert with mute_scope "person" can mute just them."""
+        return (rule, duration, who) if who else (rule, duration)
+
     def actions(self, n: Notification, topic: str) -> list[dict]:
-        """Buttons for this message. Each is signed for this topic, so the reply goes back to whoever tapped."""
+        """Buttons for this message (ntfy allows 3). Each is signed for this topic, so the reply goes
+        back to whoever tapped, and carries who they are for claim/assign."""
         if not self.command_topic:
             return []
-        buttons = []
+        who = self._who(n, topic)
+        specs: list[tuple] = []   # (label, command, args, dismiss the notification after the tap?)
         if n.kind == "event" and n.rule and not n.recovery:
-            buttons += [self._button(topic, f"Mute {d}", "mute", (n.rule, d), clear=True) for d in self.mute_buttons]
-        return buttons + [self._button(topic, "Status", "status")]
+            if n.claimed_by:                      # reminders reach the person who took it (and always_notify)
+                if who and who != n.claimed_by:   # someone watching, not doing: take over or hand it back
+                    if who in n.claim:
+                        specs.append(("I'll take over", "claim", (n.rule, who, who), True))
+                elif self.mute_buttons:
+                    specs.append((f"Mute {self.mute_buttons[0]}", "mute", self._mute_args(n.rule, self.mute_buttons[0], who), True))
+                specs.append(("Release", "release", (n.rule, who or n.claimed_by), True))
+            elif n.claim:                         # the question: who is doing this?
+                if who in n.claim:
+                    specs.append(("I'll do it", "claim", (n.rule, who, who), True))
+                others = [c for c in n.claim if c != who]
+                if len(others) == 1:
+                    specs.append((f"Give to {others[0].capitalize()}", "claim", (n.rule, others[0], who), True))
+                elif others:
+                    specs.append(("Give to…", "choose", (n.rule, who), True))
+            else:
+                specs += [(f"Mute {d}", "mute", self._mute_args(n.rule, d, who), True) for d in self.mute_buttons]
+        elif n.kind == "claim" and n.rule and who and who == n.claimed_by:
+            specs.append(("Release", "release", (n.rule, who), True))
+        specs.append(("Status", "status", (), False))
+        return [self._button(topic, label, cmd, args, clear) for label, cmd, args, clear in specs[:3]]
 
     def _publish(self, payload: dict) -> None:
         req = urllib.request.Request(self.server + "/", data=json.dumps(payload).encode(), method="POST",
@@ -120,11 +151,12 @@ class NtfyChannel(Channel):
             payload["actions"] = actions
         self._publish(payload)
 
-    def reply(self, topic: str, title: str, message: str, undo: tuple | None = None) -> None:
-        """Answer a command on the topic it came from (blocking; call from a thread)."""
+    def reply(self, topic: str, title: str, message: str, buttons=()) -> None:
+        """Answer a command on the topic it came from (blocking; call from a thread). ``buttons`` are
+        (label, command, args) tuples, at most 3."""
         payload = {"topic": topic, "title": title, "message": truncate(message), "priority": 3, "tags": ["speech_balloon"]}
-        if undo:
-            payload["actions"] = [self._button(topic, "Unmute", undo[0], undo[1:], clear=True)]
+        if buttons:
+            payload["actions"] = [self._button(topic, label, name, args, clear=True) for label, name, args in list(buttons)[:3]]
         self._publish(payload)
 
     def _send_blocking(self, topics: list[str], n: Notification) -> None:

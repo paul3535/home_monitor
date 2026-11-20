@@ -44,6 +44,9 @@ Enable the channels you want in `config.toml` (see "Notifications" below), then:
   inbox or a phone (the rest are logged as "not sent").
 - The panel has a **Notifications** section: *Send test message* and *Send daily report now* send one
   message immediately and show the result per channel, or the error (SMTP, HTTP), with no staged alert needed.
+- The startup message (`send_startup = true`) is sent to `report_to` once the first readings are in (it waits up to
+  20 s) and contains the same text as the Status button, plus the host name, version and how long the machine has been up,
+  so a program restart is easy to tell from a power cut. It is not sent in `--fake-pi` mode.
 - The fake washing machine lid starts down, so expect a "watch" message at startup (your config
   notifies at watch).
 
@@ -125,6 +128,34 @@ In `--fake-pi` mode the buttons use a separate `<command_topic>-fake` topic, so 
 reach a real monitor running under the same alert names. The panel has **Status** and **Unmute all** buttons
 that run the same commands directly.
 
+### Claiming an alert ("who is doing the laundry?")
+
+Give an alert `claim = ["paul", "ryan"]` (up to 4 contacts) and its pushes become a question:
+
+- **At WATCH** everyone the rule notifies gets **I'll do it**, plus **Give to Ryan** (or **Give to Paul**) so a
+  parent can assign it. With three or more people the second button is **Give to…**, which opens a short menu,
+  because ntfy allows only 3 buttons on a notification.
+- **Once someone takes it**, warn, error and every reminder go **only to them**, with **Mute** and **Release**
+  buttons. Everyone else gets one note ("Ryan has it" / "Paul gave it to Ryan"), and Release tells them it is open again.
+- **`always_notify = ["paul"]`** on any alert keeps those people in the loop whatever happens: they get the question
+  even if they are not in that alert's `recipients`, and every reminder and the recovery after someone else has
+  claimed it. Their copy has **I'll take over** (if they are a claimant), **Release** and **Status**. It takes contact or group names.
+- **`recovery_to = ["household"]`** also tells those people when it is over, so everyone hears that the laundry
+  is done, including people who dropped out after a claim. The message says who took it. The monitor can only see
+  the lid, so "done" means the lid went back up.
+- **`mute_scope = "person"`**: the Mute button then silences only the person who tapped it. Paul keeps getting his
+  reminders when Ryan mutes himself, and the reply says "muted ... for you" with an Unmute that undoes only theirs.
+  The default, `"alert"`, silences everyone, as before. `mute all` from the panel is always for everyone.
+- It clears by itself when the alert recovers (the lid goes up), and the recovery goes to the claimer, `always_notify`
+  and `recovery_to`. Recoveries are never muted.
+- A button from an earlier problem is refused ("nothing to do: back to normal"). Claims are kept in memory, so a
+  restart starts unclaimed (the alert timers restart too).
+- Taking an alert silences it for everyone else except `always_notify`, including at error level. Use it for chores, not for a freezer.
+- Claimable alerts show Claim buttons instead of Mute 1h / 8h; the claimer gets Mute back.
+- Each person must be a contact with an `ntfy` topic and be subscribed on their phone. `--check-config` warns
+  if a claimable alert has no command topic. In `--fake-pi` mode the test phone acts as the first recipient, so one
+  phone can walk through the whole flow.
+
 **Adding a channel** (Telegram, SMS, a webhook...): subclass `Channel` in `src/home_monitor/notify/`, set `kind`
 and `option_names`, implement `async send(notification)` (use `self.destinations(n)` to get its addresses), and
 list the class in `registry.py`. Contacts then get a key with the same name. Nothing else changes.
@@ -188,7 +219,10 @@ The SMTP login can also come from `HOME_MONITOR_SMTP_USER` / `HOME_MONITOR_SMTP_
 Ported from `monitor_gpio.json`; see the `[[switches]]`, `[[devices]]` and `[[alerts]]` sections of
 `config.example.toml`. A device derives its state from switches (closed = magnet near = pin LOW):
 
-- `garage_door`: `up`, `down`, `neither` (moving) or `unknown` (both switches closed).
+- `garage_door`: `up`, `down`, `opening`, `closing` or `unknown` (both switches closed). With neither switch closed the
+  door is moving, and it remembers where it last rested to say which way: it left `down` so it is `opening`, it left
+  `up` so it is `closing`. (`neither` only appears if the monitor starts with the door already mid-travel.) Status,
+  the log and the panel show the direction, and any alert can use it, e.g. `state = "opening"`.
 - `washing_machine`: `up` or `down` (the lid_up switch).
 
 Behaviour that differs from the C++ version:
@@ -197,12 +231,32 @@ Behaviour that differs from the C++ version:
   interrupts every edge is seen, so two switches a few ms out of step would otherwise raise an
   instant "unknown" alert. Your JSON notifies at "watch" with a 0 s watch time, so it would have emailed.
 - **Door failed to close** (`type = "door_failed_to_close"`) now means what the old code intended: the
-  door goes up -> neither -> up without reaching down. The C++ compared the door's state with ON/OFF,
+  door goes up -> closing -> up without reaching down. The C++ compared the door's state with ON/OFF,
   which a garage door never reports, so as far as I can tell it could not fire.
 - **Watch notifications.** As in your JSON (`notify_watch`, watch time 0), you are emailed the moment the
   door goes up or the lid goes down, and again at warn and error. Remove "watch" from `notify_on` to quiet that.
 - Not ported: the washing machine's `UNKNOWN_STATE` check (with one switch there is no impossible state)
   and `CLOSED_TOO_LONG` (disabled in your JSON).
+
+## Readable names (`display_name`) and the stuck-door alert
+
+Every alert, sensor, switch and device has a `name`, which is its **id**: the buttons, commands, database and
+log use it, so don't rename it casually. Add a `display_name` for the words people read:
+
+    [[alerts]]
+    name = "washing_machine_lid_down_too_long"
+    display_name = "Laundry is waiting"
+
+It is used in notification titles (`[roselawn] Laundry is waiting: OK -> WATCH`), in the detail line (`Chest
+freezer = -5.00 ...`, from the sensor's own display_name), in **Status**, the daily report, command replies
+("Laundry is waiting: you have it") and claim announcements. The log, the database and error messages keep the
+ids, so greps and old buttons keep working. Without a `display_name` the id is shown, as before. Names are
+1 to 80 characters; people (contacts) are named by their key, with the first letter capitalised.
+
+**Stuck door.** `garage_door_stuck` in the example config uses a *list* of states, which any `state` alert
+accepts: `state = ["opening", "closing"]` is triggered while the door is moving, in either direction. It warns
+after 60 s, errors after 120 s, and its watch level is silent, so a normal 15 s trip tells nobody anything.
+Set `warn_s` to a bit more than your door's real travel time.
 
 ## Not ported yet
 

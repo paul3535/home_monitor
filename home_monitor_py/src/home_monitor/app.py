@@ -15,7 +15,8 @@ from .config import Config, build_devices, build_rules
 from .models import AlertState, Reading, StateChange
 from . import __version__
 from .commands import CommandHandler, fmt_duration
-from .notify import Dispatcher, NtfyChannel, NtfyCommandListener, build_dispatcher, event_notification, message_notification
+from .notify import (Dispatcher, Notification, NtfyChannel, NtfyCommandListener, build_dispatcher, event_notification,
+                     message_notification)
 from .report import build_report
 from .sensors.ds18b20 import poll_ds18b20, read_ds18b20
 from .sensors.gpio import watch_switch
@@ -87,9 +88,44 @@ class Monitor:
             log.log(level, "alert %s: %s -> %s%s (%s)", e.rule, e.old.value, e.new.value,
                     " [muted]" if e.muted else "", e.detail)
             if e.notify:
-                recipients = self.cfg.recipients_for(self.engine.rule(e.rule).recipients, e.level.value)
+                rule = self.engine.rule(e.rule)
+                # once someone has taken an alert, only they (and anyone in always_notify) hear about it,
+                # recovery included
+                names = ([e.claimed_by] if e.claimed_by
+                         else [c.name for c in self.cfg.recipients_for(rule.recipients, e.level.value)])
+                names += rule.always_notify
+                if e.is_recovery:
+                    names += rule.recovery_to        # e.g. "the laundry is done" goes to the whole household
+                recipients = self.cfg.resolve(names)
+                if not e.is_recovery:                # personal mutes; a recovery always gets through
+                    now = self.clock()
+                    recipients = [c for c in recipients if not rule.is_muted_for(c.name, now)]
+                    if not recipients:
+                        log.info("alert %s: everyone who would be told has muted it", e.rule)
+                        continue
                 local_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                self._spawn(self.dispatcher.send(event_notification(self.cfg.system_name, e, local_time, recipients)))
+                claim = () if e.is_recovery else rule.claim
+                self._spawn(self.dispatcher.send(event_notification(self.cfg.system_name, e, local_time, recipients, claim)))
+
+    def announce_claim(self, rule, who: str | None, by: str, previous: str | None) -> None:
+        """Tell the others that someone took an alert (``who``), or released it (None). The person who
+        tapped gets the command's reply instead, so they are left out here; the new owner is always told."""
+        if self.loop is None or not self.loop.is_running() or (who is not None and who == previous):
+            return
+        level = rule.state.value if rule.state.value in ("watch", "warn", "error") else "watch"
+        names = [c.name for c in self.cfg.recipients_for(rule.recipients, level)] + [n for n in (who, previous) if n]
+        names += [c.name for c in self.cfg.resolve(list(rule.always_notify))]
+        targets = [n for n in dict.fromkeys(names) if n != by]
+        name, by_name = (who or "").capitalize(), by.capitalize()
+        if who is None:
+            subject, text = f"{rule.label}: back to everyone", f"{by_name or 'Someone'} released it. Reminders go to everyone again."
+        elif by and by != who:
+            subject, text = f"{rule.label}: {by_name} gave it to {name}", f"{by_name} gave this to {name}. Reminders now go only to {name}."
+        else:
+            subject, text = f"{rule.label}: {name} has it", f"{name} is doing it. Reminders now go only to {name}."
+        n = Notification("claim", f"[{self.cfg.system_name}] {subject}", f"{text}\n{rule.detail}\n",
+                         tuple(self.cfg.resolve(targets)), rule=rule.name, source=rule.source, claimed_by=who)
+        self._spawn(self.dispatcher.send(n))
 
     def _spawn(self, coro) -> None:
         task = asyncio.create_task(coro)  # so a slow SMTP server never blocks monitoring
@@ -176,7 +212,8 @@ class Monitor:
 
     def report_text(self) -> str:
         names = [d["name"] for d in self.cfg.ds18b20]
-        return build_report(self.store, self.cfg.system_name, names, time.time())
+        return build_report(self.store, self.cfg.system_name, names, time.time(), labels=self.cfg.display_names,
+                            rule_labels=self.cfg.alert_display_names)
 
     async def send_test_message(self) -> str:
         """For the fake-Pi panel: one message, no retries, with the result per channel."""

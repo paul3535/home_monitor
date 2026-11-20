@@ -61,6 +61,8 @@ class AlertEvent:
     repeat: int = 0       # >0: "still in error" reminder number
     notify: bool = False  # should someone be told?
     muted: bool = False   # would have notified, but the rule is muted
+    claimed_by: str | None = None   # who has taken this alert; messages about it go only to them
+    label: str = ""       # the alert's display_name (or its name): what people read
 
     @property
     def is_recovery(self) -> bool:
@@ -74,11 +76,23 @@ class AlertEvent:
 
 class AlertRule:
     def __init__(self, name: str, source: str, escalation: Escalation | None = None,
-                 recipients: dict[str, list[str]] | None = None) -> None:
+                 recipients: dict[str, list[str]] | None = None, claim: tuple = (), always_notify: tuple = (),
+                 recovery_to: tuple = (), mute_scope: str = "alert", display_name: str | None = None,
+                 source_label: str | None = None) -> None:
+        if mute_scope not in ("alert", "person"):
+            raise ValueError("mute_scope must be \"alert\" or \"person\"")
         self.name = name
         self.source = source
+        self.display_name = display_name      # for people; the name stays the id used by commands and buttons
+        self.source_label = source_label      # the source's display_name, used in the detail text
         self.escalation = escalation or Escalation()
         self.recipients = recipients  # optional per-level override of contact names
+        self.claim = tuple(claim)     # people who may take this alert ("I'll do it"); empty = not claimable
+        self.always_notify = tuple(always_notify)   # told about every message on this alert, claimed or not
+        self.recovery_to = tuple(recovery_to)       # also told when it is over (e.g. the whole household)
+        self.mute_scope = mute_scope   # "alert": a mute silences everyone; "person": only the person who muted
+        self.muted_for: dict[str, float] = {}      # person -> muted until (monotonic), for mute_scope "person"
+        self.claimed_by: str | None = None
         self.state = AlertState.OK
         self.muted_until = 0.0
         self.detail = ""
@@ -86,6 +100,14 @@ class AlertRule:
         self._since: float | None = None
         self._repeats = 0
         self._next_reminder: float | None = None
+
+    @property
+    def label(self) -> str:
+        return self.display_name or self.name
+
+    @property
+    def source_text(self) -> str:
+        return self.source_label or self.source
 
     # Inputs: subclasses override the ones they care about.
     def on_value(self, value: float, now: float) -> list[AlertEvent]:
@@ -97,11 +119,22 @@ class AlertRule:
     def tick(self, now: float) -> list[AlertEvent]:
         return self._advance(now)
 
-    def mute(self, now: float, seconds: float) -> None:
-        self.muted_until = now + seconds
+    def mute(self, now: float, seconds: float, who: str | None = None) -> None:
+        if who and self.mute_scope == "person":
+            self.muted_for[who] = now + seconds
+        else:
+            self.muted_until = now + seconds
 
-    def unmute(self) -> None:
-        self.muted_until = 0.0
+    def unmute(self, who: str | None = None) -> None:
+        if who and self.mute_scope == "person":
+            self.muted_for.pop(who, None)
+        else:                       # an alert-wide unmute clears every mute, including personal ones
+            self.muted_until = 0.0
+            self.muted_for.clear()
+
+    def is_muted_for(self, who: str, now: float) -> bool:
+        """A personal mute (mute_scope "person"). Alert-wide mutes are applied when the event is made."""
+        return now < self.muted_for.get(who, 0.0)
 
     # Core state machine
     def _update(self, triggered: bool, detail: str, now: float) -> list[AlertEvent]:
@@ -119,7 +152,9 @@ class AlertRule:
             self._repeats = 0
             self._next_reminder = None
             self.state = AlertState.OK
-            return [self._event(old, AlertState.OK, now)]
+            event = self._event(old, AlertState.OK, now)   # still carries who had claimed it
+            self.claimed_by = None                          # a new problem starts unclaimed
+            return [event]
 
         if self._since is None:
             self._since = now
@@ -144,7 +179,7 @@ class AlertRule:
         muted = False
         if notify and not recovery and now < self.muted_until:
             notify, muted = False, True  # recoveries are never muted, as before
-        return AlertEvent(self.name, self.source, old, new, self.detail, repeat, notify, muted)
+        return AlertEvent(self.name, self.source, old, new, self.detail, repeat, notify, muted, self.claimed_by, self.label)
 
 
 class BoundsRule(AlertRule):
@@ -167,22 +202,25 @@ class BoundsRule(AlertRule):
 
     def on_value(self, value: float, now: float) -> list[AlertEvent]:
         limit = f"{self.value}" if self.op != "outside" else f"{self.value}..{self.value2}"
-        return self._update(self._test(value), f"{self.source} = {value:.2f} ({self.op} {limit})", now)
+        return self._update(self._test(value), f"{self.source_text} = {value:.2f} ({self.op} {limit})", now)
 
 
 class StateRule(AlertRule):
-    """Triggered while a switch is in a given state (e.g. 'open')."""
+    """Triggered while the source is in a given state, or in any of several (e.g. ["opening", "closing"],
+    which catches a garage door that is stuck partway whichever way it was going)."""
 
-    def __init__(self, name: str, source: str, state: str, **kw) -> None:
+    def __init__(self, name: str, source: str, state: str | list, **kw) -> None:
         super().__init__(name, source, **kw)
-        self.target = state
+        self.targets = (state,) if isinstance(state, str) else tuple(state)
+        if not self.targets or not all(isinstance(t, str) and t for t in self.targets):
+            raise ValueError("state must be a name, or a list of names")
 
     def on_state(self, state: str, now: float) -> list[AlertEvent]:
-        return self._update(state == self.target, f"{self.source} is {state}", now)
+        return self._update(state in self.targets, f"{self.source_text} is {state}", now)
 
 
 class DoorClosingFailureRule(AlertRule):
-    """The garage door started closing (up -> neither) but went back to up without reaching down.
+    """The garage door started closing (up -> closing) but went back to up without reaching down.
 
     Triggered while the door sits at "up" after such an attempt; cleared when it reaches
     "down" or starts moving again. (The C++ version compared the door state with ON/OFF, which
@@ -198,10 +236,10 @@ class DoorClosingFailureRule(AlertRule):
         prev, self._prev = self._prev, state
         if state == "down":
             self._closing = False
-        elif prev == "up" and state == "neither":
+        elif state == "closing" or (prev == "up" and state == "neither"):   # "neither": direction unknown
             self._closing = True
         failed = state == "up" and self._closing
-        return self._update(failed, f"{self.source} started closing but went back up without reaching down", now)
+        return self._update(failed, f"{self.source_text} started closing but went back up without reaching down", now)
 
 
 class StaleRule(AlertRule):
@@ -214,11 +252,11 @@ class StaleRule(AlertRule):
 
     def on_value(self, value: float, now: float) -> list[AlertEvent]:
         self._last_seen = now
-        return self._update(False, f"{self.source} reporting", now)
+        return self._update(False, f"{self.source_text} reporting", now)
 
     def tick(self, now: float) -> list[AlertEvent]:
         age = now - self._last_seen
-        return self._update(age > self.max_age_s, f"no reading from {self.source} for {age:.0f}s", now)
+        return self._update(age > self.max_age_s, f"no reading from {self.source_text} for {age:.0f}s", now)
 
 
 class AlertEngine:
@@ -240,18 +278,20 @@ class AlertEngine:
     def tick(self, now: float) -> list[AlertEvent]:
         return [e for r in self.rules for e in r.tick(now)]
 
-    def mute(self, now: float, seconds: float, rule: str | None = None) -> int:
+    def mute(self, now: float, seconds: float, rule: str | None = None, who: str | None = None) -> int:
         targets = [r for r in self.rules if rule is None or r.name == rule]
         for r in targets:
-            r.mute(now, seconds)
+            r.mute(now, seconds, who)
         return len(targets)
 
-    def unmute(self, rule: str | None = None) -> int:
+    def unmute(self, rule: str | None = None, who: str | None = None) -> int:
         targets = [r for r in self.rules if rule is None or r.name == rule]
         for r in targets:
-            r.unmute()
+            r.unmute(who)
         return len(targets)
 
     def snapshot(self, now: float) -> list[dict]:
-        return [{"rule": r.name, "source": r.source, "state": r.state.value, "detail": r.detail,
-                 "muted": now < r.muted_until, "muted_for_s": max(0.0, r.muted_until - now)} for r in self.rules]
+        return [{"rule": r.name, "label": r.label, "source": r.source, "state": r.state.value, "detail": r.detail,
+                 "muted": now < r.muted_until, "muted_for_s": max(0.0, r.muted_until - now),
+                 "claimed_by": r.claimed_by,
+                 "muted_people": {w: round(t - now) for w, t in r.muted_for.items() if t > now}} for r in self.rules]

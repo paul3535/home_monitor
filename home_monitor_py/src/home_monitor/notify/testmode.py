@@ -44,7 +44,10 @@ class FakeModeChannel:
     async def send(self, n: Notification) -> str:
         if self.redirect is not None:
             real = ", ".join(c.name for c in n.recipients) or "(nobody)"
-            targets = tuple(Contact("test", {"email": t} if "@" in t else {"ntfy": t}) for t in self.redirect)
+            # Keep the real names (the claim buttons need to know who "taps"), but only the test addresses.
+            # With one test phone every name shares its topic, so the buttons act as the first recipient.
+            names = [c.name for c in n.recipients] or ["test"]
+            targets = tuple(Contact(name, {"email": t} if "@" in t else {"ntfy": t}) for name in names for t in self.redirect)
             n = replace(n, recipients=targets, body=n.body + f"\n--\nFake-Pi test. The real recipients would have been: {real}\n")
         n = replace(n, subject=f"[FAKE-PI TEST] {n.subject}")
         if not self.inner.destinations(n):

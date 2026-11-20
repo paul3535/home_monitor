@@ -4,9 +4,12 @@ Switch states are "closed" / "open". A reed switch is "closed" while the magnet 
 (pin pulled LOW), which the C++ code called ON.
 
 Derived states (lower-case versions of the C++ ones):
-  garage_door:     up | down | neither | unknown
-                   up = only the up switch is closed, down = only the down switch,
-                   neither = door in transit, unknown = both closed (should never happen)
+  garage_door:     up | down | opening | closing | neither | unknown
+                   up = only the up switch is closed, down = only the down switch.
+                   Neither switch closed means the door is moving, and the direction comes from where it last
+                   rested: it left "down" so it is opening, it left "up" so it is closing. If the monitor
+                   starts with the door already mid-travel there is no history, so the state is "neither".
+                   unknown = both switches closed (should never happen)
   washing_machine: up | down   (lid_up switch closed = lid up)
 
 Settling: with interrupts every edge is seen, including the few milliseconds when two
@@ -53,6 +56,14 @@ class GarageDoor(DerivedDevice):
     def __init__(self, name: str, up: str, down: str, settle_s: float = 1.0) -> None:
         super().__init__(name, [up, down], settle_s)
         self.up, self.down = up, down
+        self.last_end: str | None = None   # "up" or "down": the last end position it settled at
+
+    def settled(self, candidate: str) -> bool:
+        if not super().settled(candidate):
+            return False
+        if candidate in ("up", "down"):
+            self.last_end = candidate      # only a settled position counts, never a passing blip
+        return True
 
     def compute(self) -> str | None:
         if self.up not in self._closed or self.down not in self._closed:
@@ -63,7 +74,7 @@ class GarageDoor(DerivedDevice):
         if down and not up:
             return "down"
         if not up and not down:
-            return "neither"
+            return {"down": "opening", "up": "closing"}.get(self.last_end, "neither")
         return "unknown"
 
 

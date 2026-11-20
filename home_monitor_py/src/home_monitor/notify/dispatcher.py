@@ -27,7 +27,7 @@ class Dispatcher:
             if delay:
                 await asyncio.sleep(delay)
             try:
-                log.debug("%s: %s", channel.label, await channel.send(n))
+                log.info("%s: %s", channel.label, await channel.send(n))
                 return
             except RateLimited as exc:
                 log.warning("%s", exc)
@@ -60,19 +60,22 @@ def build_dispatcher(cfg) -> Dispatcher:
 
 
 def format_event(system: str, e: AlertEvent, local_time: str) -> tuple[str, str]:
+    name = e.label or e.rule      # the display_name if the alert has one
     if e.is_recovery:
-        subject = f"[{system}] {e.rule}: back to normal (was {e.old.value.upper()})"
+        subject = f"[{system}] {name}: back to normal (was {e.old.value.upper()})"
     elif e.repeat:
-        subject = f"[{system}] {e.rule}: still {e.new.value.upper()} (reminder {e.repeat})"
+        subject = f"[{system}] {name}: still {e.new.value.upper()} (reminder {e.repeat})"
     else:
-        subject = f"[{system}] {e.rule}: {e.old.value.upper()} -> {e.new.value.upper()}"
-    return subject, f"{e.detail}\nTime: {local_time}\n"
+        subject = f"[{system}] {name}: {e.old.value.upper()} -> {e.new.value.upper()}"
+    claimed = f"Taken by {e.claimed_by.capitalize()}.\n" if e.claimed_by else ""
+    return subject, f"{e.detail}\n{claimed}Time: {local_time}\n"
 
 
-def event_notification(system: str, e: AlertEvent, local_time: str, recipients) -> Notification:
+def event_notification(system: str, e: AlertEvent, local_time: str, recipients, claim: tuple = ()) -> Notification:
     subject, body = format_event(system, e, local_time)
     return Notification("event", subject, body, tuple(recipients), level=e.level.value,
-                        recovery=e.is_recovery, rule=e.rule, source=e.source, repeat=e.repeat)
+                        recovery=e.is_recovery, rule=e.rule, source=e.source, repeat=e.repeat,
+                        claim=tuple(claim), claimed_by=e.claimed_by)
 
 
 def message_notification(kind: str, subject: str, body: str, recipients) -> Notification:

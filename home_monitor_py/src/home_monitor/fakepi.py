@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 W1_FORMAT = "50 05 4b 46 7f ff 0c 10 1c : crc=1c {ok}\n50 05 4b 46 7f ff 0c 10 1c t={milli}\n"
 MODES = ("ok", "crc", "unplugged")
 # Door movements as (up_switch_closed, down_switch_closed) steps. Every move starts with
-# "neither" (the door leaves its end stop), like the real door.
+# "opening" or "closing" (the door leaves its end stop), like the real door.
 DOOR_MOVES = {
     "open": [(False, False), (True, False)],
     "close": [(False, False), (False, True)],
@@ -139,7 +139,7 @@ class FakePi:
 
     def move_door(self, name: str, action: str, step_s: float = 1.5) -> None:
         """Run a garage door movement in the background. ``step_s`` is real time between steps and
-        should exceed the device's settle_s, or the in-between 'neither' state is never published."""
+        should exceed the device's settle_s, or the in-between opening/closing state is never published."""
         if name not in self.garage:
             raise KeyError(f"unknown garage door {name!r}")
         if action not in DOOR_MOVES:
@@ -347,13 +347,13 @@ function update(s) {
     refs.switches[n].pill.textContent = v.state;
     refs.switches[n].pill.className = 'pill ' + v.state;
   }
-  const devClass = {down:'ok', up:'warn', neither:'watch', unknown:'error'};
+  const devClass = {down:'ok', up:'warn', opening:'watch', closing:'watch', neither:'watch', unknown:'error'};
   for (const [n, v] of Object.entries(s.devices)) {
     refs.devices[n].pill.textContent = v.state || 'waiting';
     refs.devices[n].pill.className = 'pill ' + (devClass[v.state] || '');
   }
   rows(document.getElementById('alerts'), ['Rule','Source','State','Detail'], s.alerts, a => [
-    el('td', {textContent:a.rule + (a.muted ? ' (muted)' : '')}), el('td', {textContent:a.source}),
+    el('td', {textContent:(a.label || a.rule) + (a.muted ? ' (muted)' : ''), title:a.rule}), el('td', {textContent:a.source}),
     el('td', {}, el('span', {className:'pill ' + a.state, textContent:a.state})), el('td', {textContent:a.detail})]);
   rows(document.getElementById('events'), ['Time','Rule','Change','Sent?','Detail'], s.events, e => [
     el('td', {textContent:e.time}), el('td', {textContent:e.rule}),

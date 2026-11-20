@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 LEVELS = ("watch", "warn", "error")
-KINDS = ("event", "report", "test", "startup")
+KINDS = ("event", "report", "test", "startup", "claim")
 
 
 class RateLimited(Exception):
@@ -38,6 +38,8 @@ class Notification:
     rule: str = ""
     source: str = ""
     repeat: int = 0
+    claim: tuple = ()                   # names who may take this alert (shown as buttons)
+    claimed_by: str | None = None       # who has taken it; for a "claim" message, the new owner
 
 
 class Channel:

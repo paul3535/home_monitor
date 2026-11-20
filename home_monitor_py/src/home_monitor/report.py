@@ -10,19 +10,22 @@ def _fmt(ts: float) -> str:
     return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
 
 
-def build_report(store: Store, system: str, sensors: list[str], now: float, hours: int = 24) -> str:
+def build_report(store: Store, system: str, sensors: list[str], now: float, hours: int = 24,
+                 labels: dict | None = None, rule_labels: dict | None = None) -> str:
+    """``labels`` / ``rule_labels`` map sensor and alert names to their display_name."""
+    labels, rule_labels = labels or {}, rule_labels or {}
     since = now - hours * 3600
     out = [f"{system} status at {_fmt(now)}", "", f"Temperatures, last {hours} h:"]
     for name in sensors:
         s = store.stats(name, since)
         if s is None:
-            out.append(f"  {name}: NO READINGS")
+            out.append(f"  {labels.get(name, name)}: NO READINGS")
             continue
-        out.append(f"  {name}: now {s['last']:.2f} C, min {s['min']:.2f}, max {s['max']:.2f}, "
+        out.append(f"  {labels.get(name, name)}: now {s['last']:.2f} C, min {s['min']:.2f}, max {s['max']:.2f}, "
                    f"avg {s['avg']:.2f} ({s['n']} samples)")
     out += ["", "Hourly min / max:"]
     for name in sensors:
-        out.append(f"  {name}")
+        out.append(f"  {labels.get(name, name)}")
         for hour, lo, hi, _avg in store.hourly(name, since)[:hours]:
             out.append(f"    {_fmt(hour)}  {lo:7.2f}  {hi:7.2f}")
     events = [e for e in store.recent_events(since) if e[3] != "pending"]
@@ -30,5 +33,5 @@ def build_report(store: Store, system: str, sensors: list[str], now: float, hour
     for ts, rule, old, new, repeat, notified, muted, detail in events:
         tag = " (muted)" if muted else ""
         again = f" reminder {repeat}" if repeat else ""
-        out.append(f"  {_fmt(ts)}  {rule}: {old} -> {new}{again}{tag}  {detail}")
+        out.append(f"  {_fmt(ts)}  {rule_labels.get(rule, rule)}: {old} -> {new}{again}{tag}  {detail}")
     return "\n".join(out) + "\n"

@@ -7,7 +7,7 @@ log_dir = "logs"
 log_level = "INFO"
 tick_seconds = 1          # how often alert timers are advanced
 retention_days = 365
-send_startup = true       # email report_to a note when the program starts
+send_startup = true       # tell report_to when the program starts, with the current status (temperatures, devices, alerts)
 daily_report_hour = 8     # local time; delete this line to turn the daily report off
 # private_file = "private.toml"   # secrets kept out of git, relative to this file
 
@@ -19,6 +19,7 @@ daily_report_hour = 8     # local time; delete this line to turn the daily repor
 paul = { email = "you@example.com", ntfy = "paul-example-topic" }
 mum  = "mum@example.com"
 dad  = "dad@example.com"
+ryan = { email = "ryan@example.com", ntfy = "ryan-example-topic" }
 
 [notify]
 report_to = ["paul"]        # who gets the daily report and the panel's test messages
@@ -69,11 +70,13 @@ server = "https://ntfy.sh"
 # Ids are the directory names under /sys/bus/w1/devices/. Check with: ls /sys/bus/w1/devices
 [[ds18b20]]
 name = "chest_freezer"
+display_name = "Chest freezer"
 id = "28-0000072a0843"
 interval_s = 60
 
 [[ds18b20]]
 name = "upright_freezer"
+display_name = "Upright freezer"
 id = "28-0315536994ff"      # assumed from 1wire/temp_sensor.py: verify on the Pi
 interval_s = 60
 
@@ -90,10 +93,12 @@ name = "washing_machine_lid_up"
 pin = 22
 
 # --- Devices built from switches ---------------------------------------------------
-# garage_door: up | down | neither (moving) | unknown (both switches closed: should never happen)
+# garage_door: up | down | opening | closing | unknown (both switches closed: should never happen)
+#   opening/closing = moving; the direction comes from the end it last rested at (neither = direction unknown)
 # washing_machine: up | down. settle_s: a state must hold this long before it counts.
 [[devices]]
 name = "roselawn_garage_door"
+display_name = "Garage door"
 type = "garage_door"
 up = "garage_door_up"
 down = "garage_door_down"
@@ -101,15 +106,19 @@ settle_s = 1.0
 
 [[devices]]
 name = "roselawn_washing_machine"
+display_name = "Washing machine"
 type = "washing_machine"
 lid_up = "washing_machine_lid_up"
 settle_s = 1.0
 
 # --- Alerts --------------------------------------------------------------
+# name is the id (used by buttons, commands and the log); display_name is what people read in
+# notifications, Status and the daily report. Sensors, switches and devices can have one too.
 # Same thresholds as the C++ test email: above -8 C; watch 0 s, warn 300 s, error 600 s,
 # error repeats every 300 s. notify_on picks which levels send a message.
 [[alerts]]
 name = "chest_freezer_warm"
+display_name = "Chest freezer too warm"
 type = "bounds"
 source = "chest_freezer"
 op = "greater_than"
@@ -122,6 +131,7 @@ notify_on = ["warn", "error"]
 
 [[alerts]]
 name = "upright_freezer_warm"
+display_name = "Upright freezer too warm"
 type = "bounds"
 source = "upright_freezer"
 op = "greater_than"
@@ -134,6 +144,7 @@ error_retry_s = 300
 # A sensor that stops reporting is an alert too (new: the C++ code could not see this).
 [[alerts]]
 name = "chest_freezer_silent"
+display_name = "Chest freezer sensor not reporting"
 type = "stale"
 source = "chest_freezer"
 max_age_s = 180
@@ -143,6 +154,7 @@ error_s = 600
 
 [[alerts]]
 name = "upright_freezer_silent"
+display_name = "Upright freezer sensor not reporting"
 type = "stale"
 source = "upright_freezer"
 max_age_s = 180
@@ -153,6 +165,7 @@ error_s = 600
 # Garage door and washing machine, from monitor_gpio.json (notify_watch = true there, hence "watch").
 [[alerts]]
 name = "garage_door_up_too_long"
+display_name = "Garage door left open"
 type = "state"
 source = "roselawn_garage_door"
 state = "up"
@@ -164,6 +177,7 @@ notify_on = ["watch", "warn", "error"]
 
 [[alerts]]
 name = "garage_door_unknown_state"        # both switches closed
+display_name = "Garage door switches disagree"
 type = "state"
 source = "roselawn_garage_door"
 state = "unknown"
@@ -175,6 +189,7 @@ notify_on = ["watch", "warn", "error"]
 
 [[alerts]]
 name = "garage_door_failed_to_close"      # started closing, then went back up
+display_name = "Garage door failed to close"
 type = "door_failed_to_close"
 source = "roselawn_garage_door"
 watch_s = 0
@@ -183,8 +198,23 @@ error_s = 1
 error_retry_s = 30
 notify_on = ["watch", "warn", "error"]
 
+# A door stuck partway: moving for more than 60 s. Every normal trip starts at "watch", which is silent
+# (notify_on leaves it out), so you are only told when it really is stuck, and again when it gets going.
+[[alerts]]
+name = "garage_door_stuck"
+display_name = "Garage door stuck partway"
+type = "state"
+source = "roselawn_garage_door"
+state = ["opening", "closing"]    # either direction: a list of states is allowed
+watch_s = 0
+warn_s = 60
+error_s = 120
+error_retry_s = 300
+notify_on = ["warn", "error"]
+
 [[alerts]]
 name = "washing_machine_lid_down_too_long"
+display_name = "Laundry is waiting"
 type = "state"
 source = "roselawn_washing_machine"
 state = "down"
@@ -193,3 +223,12 @@ warn_s = 3600
 error_s = 5400
 error_retry_s = 300
 notify_on = ["watch", "warn", "error"]
+# "Who is doing the laundry?" The watch message goes to everyone listed here with an "I'll do it" button
+# (and "Give to ..." so a parent can assign it). Once someone takes it, reminders go only to them, until
+# the lid goes up. Needs command_topic and command_secret on the ntfy channel. Remove these two lines
+# to go back to the same messages for everyone.
+claim = ["paul", "ryan"]
+recipients = { watch = ["paul", "ryan"], warn = ["paul", "ryan"] }   # error uses [notify.levels]
+always_notify = ["paul"]    # hears every message about this alert, even after someone else claims it
+mute_scope = "person"       # Mute silences only the person who tapped it (default "alert" silences everyone)
+recovery_to = ["paul", "ryan"]   # everyone listed is told when it is over, even if they dropped out after a claim
