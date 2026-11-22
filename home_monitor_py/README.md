@@ -253,6 +253,17 @@ freezer = -5.00 ...`, from the sensor's own display_name), in **Status**, the da
 ids, so greps and old buttons keep working. Without a `display_name` the id is shown, as before. Names are
 1 to 80 characters; people (contacts) are named by their key, with the first letter capitalised.
 
+**How long it has been going on.** An alert message has no clock time (it arrives when it happens). It says how
+long the problem has lasted instead: `Started 5m ago.` on a reminder, `Started just now.` on the first message, and
+`It lasted 1h 2m.` when it is over. Give an alert its own wording with `message`, where `{duration}` is that time
+and `{source}` is the sensor or device's display name (`{duration}` says "a moment" for the first few seconds):
+
+    message = "The garage door has been up for {duration}"
+
+It replaces the detail and "Started" lines (the title, "Taken by ..." and recovery wording stay). Only `{duration}`
+and `{source}` are allowed, and `{{` `}}` give literal braces; a mistake is reported when the config loads. The
+clock starts when the monitor first sees the problem, so a restart starts every duration again from zero.
+
 **Stuck door.** `garage_door_stuck` in the example config uses a *list* of states, which any `state` alert
 accepts: `state = ["opening", "closing"]` is triggered while the door is moving, in either direction. It warns
 after 60 s, errors after 120 s, and its watch level is silent, so a normal 15 s trip tells nobody anything.

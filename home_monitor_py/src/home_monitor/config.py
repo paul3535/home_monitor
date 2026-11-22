@@ -268,6 +268,7 @@ def build_rules(cfg: Config, now: float) -> list[AlertRule]:
             )
             common = dict(escalation=esc, recipients=a.get("recipients"), claim=tuple(a.get("claim", ())),
                           display_name=cfg.alert_display_names.get(a["name"]), source_label=cfg.label(a["source"]),
+                          message=a.get("message"),
                           always_notify=tuple(a.get("always_notify", ())), recovery_to=tuple(a.get("recovery_to", ())),
                           mute_scope=a.get("mute_scope", "alert"))
             kind = a["type"]

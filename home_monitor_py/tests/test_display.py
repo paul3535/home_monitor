@@ -160,10 +160,10 @@ class DisplayNamesInMessages(unittest.TestCase):
     def test_the_subject_and_detail_use_display_names_but_the_event_keeps_the_id(self):
         r = self.rule(display_name="Laundry is waiting", source_label="Chest freezer")
         e = self.event(r)
-        subject, body = format_event("t", e, "now")
+        subject, body = format_event("t", e)
         self.assertEqual(subject, "[t] Laundry is waiting: OK -> WATCH")
         self.assertIn("Chest freezer = -5.00 (greater_than -8.0)", body)
-        n = event_notification("t", e, "now", [])
+        n = event_notification("t", e, [])
         self.assertEqual((n.rule, n.source), ("laundry", "chest"))                   # buttons and commands use the id
 
     def test_recovery_and_reminder_subjects_too(self):
@@ -171,12 +171,12 @@ class DisplayNamesInMessages(unittest.TestCase):
         self.event(r)
         r.tick(60)
         again = r.tick(90)[0]
-        self.assertEqual(format_event("t", again, "now")[0], "[t] Laundry is waiting: still ERROR (reminder 1)")
+        self.assertEqual(format_event("t", again)[0], "[t] Laundry is waiting: still ERROR (reminder 1)")
         back = r.on_value(-15.0, 100)[0]
-        self.assertEqual(format_event("t", back, "now")[0], "[t] Laundry is waiting: back to normal (was ERROR)")
+        self.assertEqual(format_event("t", back)[0], "[t] Laundry is waiting: back to normal (was ERROR)")
 
     def test_without_a_display_name_nothing_changes(self):
-        subject, body = format_event("t", self.event(self.rule()), "now")
+        subject, body = format_event("t", self.event(self.rule()))
         self.assertEqual(subject, "[t] laundry: OK -> WATCH")
         self.assertIn("chest = -5.00", body)
 

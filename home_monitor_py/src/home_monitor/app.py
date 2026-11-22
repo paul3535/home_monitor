@@ -103,9 +103,8 @@ class Monitor:
                     if not recipients:
                         log.info("alert %s: everyone who would be told has muted it", e.rule)
                         continue
-                local_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 claim = () if e.is_recovery else rule.claim
-                self._spawn(self.dispatcher.send(event_notification(self.cfg.system_name, e, local_time, recipients, claim)))
+                self._spawn(self.dispatcher.send(event_notification(self.cfg.system_name, e, recipients, claim)))
 
     def announce_claim(self, rule, who: str | None, by: str, previous: str | None) -> None:
         """Tell the others that someone took an alert (``who``), or released it (None). The person who

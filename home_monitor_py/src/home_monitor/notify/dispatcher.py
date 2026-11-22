@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 from ..alerts import AlertEvent
+from ..textutil import fmt_duration
 from .base import Channel, Notification, RateLimited
 from .log import LogChannel
 from .registry import build_channels
@@ -59,7 +60,7 @@ def build_dispatcher(cfg) -> Dispatcher:
     return Dispatcher(channels)
 
 
-def format_event(system: str, e: AlertEvent, local_time: str) -> tuple[str, str]:
+def format_event(system: str, e: AlertEvent) -> tuple[str, str]:
     name = e.label or e.rule      # the display_name if the alert has one
     if e.is_recovery:
         subject = f"[{system}] {name}: back to normal (was {e.old.value.upper()})"
@@ -67,12 +68,19 @@ def format_event(system: str, e: AlertEvent, local_time: str) -> tuple[str, str]
         subject = f"[{system}] {name}: still {e.new.value.upper()} (reminder {e.repeat})"
     else:
         subject = f"[{system}] {name}: {e.old.value.upper()} -> {e.new.value.upper()}"
-    claimed = f"Taken by {e.claimed_by.capitalize()}.\n" if e.claimed_by else ""
-    return subject, f"{e.detail}\n{claimed}Time: {local_time}\n"
+    # No clock time: the message arrives when it happens. What the person wants to know is how long it has been going on.
+    lines = [e.message or e.detail]
+    if e.is_recovery:
+        lines.append(f"It lasted {fmt_duration(e.elapsed_s)}.")
+    elif not e.message:        # a custom message already says how long, if it wants to
+        lines.append("Started just now." if e.elapsed_s < 5 else f"Started {fmt_duration(e.elapsed_s)} ago.")
+    if e.claimed_by:
+        lines.append(f"Taken by {e.claimed_by.capitalize()}.")
+    return subject, "\n".join(lines) + "\n"
 
 
-def event_notification(system: str, e: AlertEvent, local_time: str, recipients, claim: tuple = ()) -> Notification:
-    subject, body = format_event(system, e, local_time)
+def event_notification(system: str, e: AlertEvent, recipients, claim: tuple = ()) -> Notification:
+    subject, body = format_event(system, e)
     return Notification("event", subject, body, tuple(recipients), level=e.level.value,
                         recovery=e.is_recovery, rule=e.rule, source=e.source, repeat=e.repeat,
                         claim=tuple(claim), claimed_by=e.claimed_by)

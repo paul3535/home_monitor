@@ -18,7 +18,7 @@ DAD = Contact("dad", {"ntfy": "dad-topic"})                         # no email
 
 
 def event(level="warn", recovery=False, recipients=(PAUL, MUM, DAD), kind="event", subject="[t] hot: WATCH -> WARN"):
-    return Notification(kind, subject, "chest = -5.00\nTime: now\n", tuple(recipients), level=level,
+    return Notification(kind, subject, "chest = -5.00\nStarted 1m ago.\n", tuple(recipients), level=level,
                         recovery=recovery, rule="hot", source="chest")
 
 

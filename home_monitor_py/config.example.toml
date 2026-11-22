@@ -112,6 +112,9 @@ lid_up = "washing_machine_lid_up"
 settle_s = 1.0
 
 # --- Alerts --------------------------------------------------------------
+# Each notification says how long the problem has been going on ("Started 5m ago", and "It lasted 1h 2m" when it
+# is over). An alert can use its own wording instead with message, where {duration} is that time and {source} is
+# the sensor or device's display_name: message = "The garage door has been up for {duration}".
 # name is the id (used by buttons, commands and the log); display_name is what people read in
 # notifications, Status and the daily report. Sensors, switches and devices can have one too.
 # Same thresholds as the C++ test email: above -8 C; watch 0 s, warn 300 s, error 600 s,
@@ -166,6 +169,7 @@ error_s = 600
 [[alerts]]
 name = "garage_door_up_too_long"
 display_name = "Garage door left open"
+message = "The garage door has been up for {duration}"
 type = "state"
 source = "roselawn_garage_door"
 state = "up"
@@ -215,6 +219,7 @@ notify_on = ["warn", "error"]
 [[alerts]]
 name = "washing_machine_lid_down_too_long"
 display_name = "Laundry is waiting"
+message = "The laundry has been waiting {duration}"
 type = "state"
 source = "roselawn_washing_machine"
 state = "down"

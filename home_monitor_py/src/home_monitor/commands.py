@@ -18,6 +18,8 @@ import time
 from dataclasses import dataclass
 from urllib.parse import quote, unquote
 
+from .textutil import fmt_duration  # noqa: F401 - re-exported for callers that import it from here
+
 log = logging.getLogger(__name__)
 
 _DURATION = re.compile(r"^(\d+)([smhd])$")
@@ -30,16 +32,6 @@ def parse_duration(text: str) -> float:
     if not m or int(m.group(1)) == 0:
         raise ValueError(f"bad duration {text!r}; use a number and s, m, h or d (e.g. 30m, 2h)")
     return int(m.group(1)) * _UNITS[m.group(2)]
-
-
-def fmt_duration(seconds: float) -> str:
-    seconds = int(round(seconds))
-    if seconds < 60:
-        return f"{seconds}s"
-    days, rest = divmod(seconds, 86400)
-    hours, rest = divmod(rest, 3600)
-    minutes = rest // 60
-    return " ".join(f"{n}{u}" for n, u in ((days, "d"), (hours, "h"), (minutes, "m")) if n) or "0m"
 
 
 class CommandError(Exception):

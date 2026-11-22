@@ -18,6 +18,7 @@ import operator
 from dataclasses import dataclass
 
 from .models import AlertState
+from .textutil import fmt_duration
 
 _OPS = {
     "greater_than": operator.gt,
@@ -63,6 +64,8 @@ class AlertEvent:
     muted: bool = False   # would have notified, but the rule is muted
     claimed_by: str | None = None   # who has taken this alert; messages about it go only to them
     label: str = ""       # the alert's display_name (or its name): what people read
+    elapsed_s: float = 0.0   # how long the problem has been going on (for a recovery: how long it lasted)
+    message: str = ""        # the alert's own wording, already filled in (empty = the default text)
 
     @property
     def is_recovery(self) -> bool:
@@ -78,13 +81,19 @@ class AlertRule:
     def __init__(self, name: str, source: str, escalation: Escalation | None = None,
                  recipients: dict[str, list[str]] | None = None, claim: tuple = (), always_notify: tuple = (),
                  recovery_to: tuple = (), mute_scope: str = "alert", display_name: str | None = None,
-                 source_label: str | None = None) -> None:
+                 source_label: str | None = None, message: str | None = None) -> None:
         if mute_scope not in ("alert", "person"):
             raise ValueError("mute_scope must be \"alert\" or \"person\"")
         self.name = name
         self.source = source
         self.display_name = display_name      # for people; the name stays the id used by commands and buttons
         self.source_label = source_label      # the source's display_name, used in the detail text
+        self.message = message                # optional wording with {duration} and {source}, e.g. "The laundry has been waiting {duration}"
+        if message:
+            try:
+                message.format(duration="1m", source="x")
+            except (KeyError, IndexError, ValueError) as exc:
+                raise ValueError(f"message may only use {{duration}} and {{source}} (and {{{{ }}}} for braces): {exc!r}") from exc
         self.escalation = escalation or Escalation()
         self.recipients = recipients  # optional per-level override of contact names
         self.claim = tuple(claim)     # people who may take this alert ("I'll do it"); empty = not claimable
@@ -147,39 +156,45 @@ class AlertRule:
         if not self._triggered:
             if self._since is None:
                 return []
-            old = self.state
+            old, lasted = self.state, now - self._since
             self._since = None
             self._repeats = 0
             self._next_reminder = None
             self.state = AlertState.OK
-            event = self._event(old, AlertState.OK, now)   # still carries who had claimed it
+            event = self._event(old, AlertState.OK, now, elapsed=lasted)   # still carries who had claimed it
             self.claimed_by = None                          # a new problem starts unclaimed
             return [event]
 
         if self._since is None:
             self._since = now
-        target = esc.state_for(now - self._since)
+        elapsed = now - self._since
+        target = esc.state_for(elapsed)
         if target is not self.state:
             old, self.state = self.state, target
             if target is AlertState.ERROR:
                 self._repeats = 0
                 self._next_reminder = now + esc.error_retry_s if esc.error_retry_s > 0 else None
-            return [self._event(old, target, now)]
+            return [self._event(old, target, now, elapsed=elapsed)]
         if (target is AlertState.ERROR and self._next_reminder is not None
                 and now >= self._next_reminder):
             self._repeats += 1
             self._next_reminder = now + esc.error_retry_s
-            return [self._event(target, target, now, repeat=self._repeats)]
+            return [self._event(target, target, now, repeat=self._repeats, elapsed=elapsed)]
         return []
 
-    def _event(self, old: AlertState, new: AlertState, now: float, repeat: int = 0) -> AlertEvent:
+    def _event(self, old: AlertState, new: AlertState, now: float, repeat: int = 0, elapsed: float = 0.0) -> AlertEvent:
         recovery = new is AlertState.OK
         level = old if recovery else new
         notify = level in self.escalation.notify_on
         muted = False
         if notify and not recovery and now < self.muted_until:
             notify, muted = False, True  # recoveries are never muted, as before
-        return AlertEvent(self.name, self.source, old, new, self.detail, repeat, notify, muted, self.claimed_by, self.label)
+        text = ""
+        if self.message and not recovery:
+            how_long = "a moment" if elapsed < 5 else fmt_duration(elapsed)   # reads well after "for" or "waiting"
+            text = self.message.format(duration=how_long, source=self.source_text)
+        return AlertEvent(self.name, self.source, old, new, self.detail, repeat, notify, muted, self.claimed_by, self.label,
+                          elapsed, text)
 
 
 class BoundsRule(AlertRule):
